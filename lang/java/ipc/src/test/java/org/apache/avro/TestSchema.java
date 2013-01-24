@@ -52,6 +52,8 @@ import org.apache.avro.data.Json;
 import org.apache.avro.compiler.specific.TestSpecificCompiler;
 import org.apache.avro.util.Utf8;
 
+import org.codehaus.jackson.node.IntNode;
+
 public class TestSchema {
 
   public static final String LISP_SCHEMA = "{\"type\": \"record\", \"name\": \"Lisp\", \"fields\": ["
@@ -1097,6 +1099,34 @@ public class TestSchema {
     assertNotSubsumes(s4, s1);
     assertSubsumes(s4, s2);
     assertSubsumes(s4, s3);
+  }
+
+  @Test
+  public void testSubsumesAnonymousRecord() {
+      List a1Fields = Arrays.asList(new Schema.Field("a", Schema.create(Schema.Type.LONG), "", null));
+      Schema a1 = Schema.createRecord(a1Fields);
+
+      List a2Fields = Arrays.asList(new Schema.Field("a", Schema.create(Schema.Type.LONG), "", null), new Schema.Field("b", Schema.create(Schema.Type.INT), "", null));
+      Schema a2 = Schema.createRecord(a2Fields);
+
+      List a3Fields = Arrays.asList(new Schema.Field("a", Schema.create(Schema.Type.LONG), "", null), new Schema.Field("b", Schema.create(Schema.Type.INT), "", new IntNode(0)));
+      Schema a3 = Schema.createRecord(a3Fields);
+
+      List a4Fields = Arrays.asList(new Schema.Field("b", Schema.create(Schema.Type.INT), "", null), new Schema.Field("a", Schema.create(Schema.Type.LONG), "", null));
+      Schema a4 = Schema.createRecord(a4Fields);
+
+      assertNotSubsumes(a1, a2);
+      assertNotSubsumes(a1, a3);
+      assertNotSubsumes(a1, a4);
+      assertNotSubsumes(a2, a1);
+      assertSubsumes(a2, a3);
+      assertSubsumes(a2, a4);
+      assertSubsumes(a3, a1);
+      assertSubsumes(a3, a2);
+      assertSubsumes(a3, a4);
+      assertNotSubsumes(a4, a1);
+      assertSubsumes(a4, a2);
+      assertSubsumes(a4, a3);
   }
 
   @Test

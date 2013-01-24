@@ -644,7 +644,8 @@ public abstract class Schema {
       if (!super.subsumes(other)) {
         return false;
       }
-      return getFullName().equals(other.getFullName())
+      return (getFullName() == null && other.getFullName() == null)
+        || getFullName().equals(other.getFullName())
         || getAliases().contains(other.getFullName());
     }
     protected final void unifyAliases(Schema other) {
