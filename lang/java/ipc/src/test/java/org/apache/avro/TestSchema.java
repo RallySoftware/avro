@@ -34,6 +34,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.codehaus.jackson.JsonNode;
 
@@ -925,13 +927,25 @@ public class TestSchema {
   private static final Schema BOOLEAN_SCHEMA = Schema.create(Type.BOOLEAN);
 
   private static void assertSubsumes(Schema parent, Schema child) {
-    assertTrue(String.format("%s is not a superset of %s", parent, child),
-        parent.subsumes(child));
+      try {
+          assertTrue(String.format("%s is not a superset of %s", parent, child),
+                  parent.subsumes(child));
+      } catch (IncompatableSchemaException e) {
+          fail(e.getMessage());
+      }
   }
 
-  private static void assertNotSubsumes(Schema parent, Schema child) {
-    assertFalse(String.format("%s is a superset of %s", parent, child),
-        parent.subsumes(child));
+  private static void assertNotSubsumes(Schema parent, Schema child, String errorMatch) {
+      try {
+          parent.subsumes(child);
+          fail(String.format("%s is a superset of %s", parent, child));
+      } catch(IncompatableSchemaException e) {
+          Pattern p = Pattern.compile(errorMatch);
+          Matcher m = p.matcher(e.getMessage());
+          if(!m.find()) {
+              fail("IncompatableSchemaException was thrown, but the error message '" + e.getMessage() + "' did not match '" + errorMatch + "'");
+          }
+      }
   }
 
   @Test
@@ -948,7 +962,7 @@ public class TestSchema {
   @Test
   public void testSubsumesLong() {
     assertSubsumes(LONG_SCHEMA, INT_SCHEMA);
-    assertNotSubsumes(INT_SCHEMA, LONG_SCHEMA);
+    assertNotSubsumes(INT_SCHEMA, LONG_SCHEMA, "long cannot be converted to a int");
   }
 
   @Test
@@ -956,8 +970,8 @@ public class TestSchema {
     assertSubsumes(FLOAT_SCHEMA, INT_SCHEMA);
     assertSubsumes(FLOAT_SCHEMA, LONG_SCHEMA);
 
-    assertNotSubsumes(INT_SCHEMA, FLOAT_SCHEMA);
-    assertNotSubsumes(LONG_SCHEMA, FLOAT_SCHEMA);
+    assertNotSubsumes(INT_SCHEMA, FLOAT_SCHEMA, "float cannot be converted to a int");
+    assertNotSubsumes(LONG_SCHEMA, FLOAT_SCHEMA, "float cannot be converted to a long");
   }
 
   @Test
@@ -966,9 +980,9 @@ public class TestSchema {
     assertSubsumes(DOUBLE_SCHEMA, LONG_SCHEMA);
     assertSubsumes(DOUBLE_SCHEMA, FLOAT_SCHEMA);
 
-    assertNotSubsumes(INT_SCHEMA, DOUBLE_SCHEMA);
-    assertNotSubsumes(LONG_SCHEMA, DOUBLE_SCHEMA);
-    assertNotSubsumes(FLOAT_SCHEMA, DOUBLE_SCHEMA);
+    assertNotSubsumes(INT_SCHEMA, DOUBLE_SCHEMA, "double cannot be converted to a int");
+    assertNotSubsumes(LONG_SCHEMA, DOUBLE_SCHEMA, "double cannot be converted to a long");
+    assertNotSubsumes(FLOAT_SCHEMA, DOUBLE_SCHEMA, "double cannot be converted to a float");
   }
 
   @Test
@@ -978,7 +992,7 @@ public class TestSchema {
 
     assertSubsumes(intArray, intArray);
     assertSubsumes(longArray, intArray);
-    assertNotSubsumes(intArray, longArray);
+    assertNotSubsumes(intArray, longArray, "long cannot be converted to a int");
   }
 
   @Test
@@ -988,7 +1002,7 @@ public class TestSchema {
 
     assertSubsumes(intMap, intMap);
     assertSubsumes(longMap, intMap);
-    assertNotSubsumes(intMap, longMap);
+    assertNotSubsumes(intMap, longMap, "long cannot be converted to a int");
   }
 
   @Test
@@ -998,9 +1012,9 @@ public class TestSchema {
     Schema s3 = Schema.createFixed("bar", "", "", 4);
 
     assertSubsumes(s1, s1);
-    assertNotSubsumes(s1, s2);
-    assertNotSubsumes(s2, s1);
-    assertNotSubsumes(s1, s3);
+    assertNotSubsumes(s1, s2, "fixed schemas are not the same size");
+    assertNotSubsumes(s2, s1, "fixed schemas are not the same size");
+    assertNotSubsumes(s1, s3, "schemas do not share the same name or alias");
   }
 
   @Test
@@ -1012,8 +1026,8 @@ public class TestSchema {
         Arrays.asList("FOO", "BAR", "BAZ"));
 
     assertSubsumes(s1, s2);
-    assertNotSubsumes(s2, s1);
-    assertNotSubsumes(s1, s3);
+    assertNotSubsumes(s2, s1, "schemas do not share the same elements");
+    assertNotSubsumes(s1, s3, "schemas do not share the same name or alias");
   }
 
   private void testSimpleType(Type type) {
@@ -1022,7 +1036,7 @@ public class TestSchema {
 
     assertSubsumes(s1, s2);
     assertSubsumes(s2, s1);
-    assertNotSubsumes(s1, INT_SCHEMA);
+    assertNotSubsumes(s1, INT_SCHEMA, String.format("int cannot be converted to a %s", type.getName()));
   }
 
   @Test
@@ -1051,7 +1065,7 @@ public class TestSchema {
     Schema s2 = INT_SCHEMA;
 
     assertSubsumes(s1, s2);
-    assertNotSubsumes(s2, s1);
+    assertNotSubsumes(s2, s1, "union cannot be converted to a int");
   }
 
   @Test
@@ -1066,10 +1080,10 @@ public class TestSchema {
     assertSubsumes(s1, s2);
     assertSubsumes(s1, s3);
     assertSubsumes(s3, s1);
-    assertNotSubsumes(s2, s1);
+    assertNotSubsumes(s2, s1, "union schemas are incompatible");
     assertSubsumes(s3, s1);
     assertSubsumes(s4, s2);
-    assertNotSubsumes(s2, s4);
+    assertNotSubsumes(s2, s4, "union schemas are incompatible");
     assertSubsumes(s4, INT_SCHEMA);
   }
 
@@ -1087,16 +1101,16 @@ public class TestSchema {
         + "'fields': [ {'name': 'b', 'type': 'int'},"
         + "{'name': 'a', 'type': 'long'} ] }").replace('\'', '"'));
 
-    assertNotSubsumes(s1, s2);
-    assertNotSubsumes(s1, s3);
-    assertNotSubsumes(s1,s4);
-    assertNotSubsumes(s2, s1);
+    assertNotSubsumes(s1, s2, "child schema has an additional element than the parent schema");
+    assertNotSubsumes(s1, s3, "child schema has an additional element than the parent schema");
+    assertNotSubsumes(s1, s4, "child schema has an additional element than the parent schema");
+    assertNotSubsumes(s2, s1, "parent schema has and additional field without a default value");
     assertSubsumes(s2, s3);
     assertSubsumes(s2, s4);
     assertSubsumes(s3, s1);
     assertSubsumes(s3, s2);
     assertSubsumes(s3, s4);
-    assertNotSubsumes(s4, s1);
+    assertNotSubsumes(s4, s1, "parent schema has and additional field without a default value");
     assertSubsumes(s4, s2);
     assertSubsumes(s4, s3);
   }
@@ -1115,16 +1129,16 @@ public class TestSchema {
       List a4Fields = Arrays.asList(new Schema.Field("b", Schema.create(Schema.Type.INT), "", null), new Schema.Field("a", Schema.create(Schema.Type.LONG), "", null));
       Schema a4 = Schema.createRecord(a4Fields);
 
-      assertNotSubsumes(a1, a2);
-      assertNotSubsumes(a1, a3);
-      assertNotSubsumes(a1, a4);
-      assertNotSubsumes(a2, a1);
+      assertNotSubsumes(a1, a2, "child schema has an additional element than the parent schema");
+      assertNotSubsumes(a1, a3, "child schema has an additional element than the parent schema");
+      assertNotSubsumes(a1, a4, "child schema has an additional element than the parent schema");
+      assertNotSubsumes(a2, a1, "parent schema has and additional field without a default value");
       assertSubsumes(a2, a3);
       assertSubsumes(a2, a4);
       assertSubsumes(a3, a1);
       assertSubsumes(a3, a2);
       assertSubsumes(a3, a4);
-      assertNotSubsumes(a4, a1);
+      assertNotSubsumes(a4, a1, "parent schema has and additional field without a default value");
       assertSubsumes(a4, a2);
       assertSubsumes(a4, a3);
   }
@@ -1137,7 +1151,7 @@ public class TestSchema {
         + "'fields': [ {'name': 'a', 'type': 'long'} ] }").replace('\'', '"'));
 
     assertSubsumes(s2,s1);
-    assertNotSubsumes(s1,s2);
+    assertNotSubsumes(s1,s2, "schemas do not share the same name or alias");
   }
   
   @Test
