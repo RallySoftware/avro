@@ -392,12 +392,18 @@ public abstract class Schema {
    * properties or field ordering in records.
    * </p>
    * 
+   *
    * @param other the other schema to consider
    * @return <code>true</code> if this schema is a superset of the other schema
    * and <code>false</code> otherwise.
    */
-  public boolean subsumes(Schema other) {
-    return other != null && getType() == other.getType();
+  public boolean subsumes(Schema other) throws IncompatibleSchemaException {
+    if (other != null && getType() != other.getType()) {
+        throw new IncompatibleSchemaException(String.format("%s cannot be converted to a %s",
+                                              other.getType().getName(), this.getType().getName()),
+                this, other);
+    }
+    return true;
   }
 
   /**
@@ -419,13 +425,17 @@ public abstract class Schema {
     if (other == null) {
       throw new NullPointerException("Attempt to unify with null");
     }
-    if (subsumes(other)) {
-      return this;
-    }
-    if (other.subsumes(this)) {
-      return other;
-    }
-    return Schema.createUnion(Arrays.asList(this, other));
+      try {
+          if (subsumes(other)) {
+            return this;
+          }
+      } catch (IncompatibleSchemaException e) {}
+      try {
+          if (other.subsumes(this)) {
+            return other;
+          }
+      } catch (IncompatibleSchemaException e) {}
+      return Schema.createUnion(Arrays.asList(this, other));
   }
 
   /**
@@ -640,13 +650,16 @@ public abstract class Schema {
         gen.writeString(alias.getQualified(name.space));
       gen.writeEndArray();
     }
-    public boolean subsumes(Schema other) {
+    public boolean subsumes(Schema other) throws IncompatibleSchemaException {
       if (!super.subsumes(other)) {
         return false;
       }
-      return (getFullName() == null && other.getFullName() == null)
-        || getFullName().equals(other.getFullName())
-        || getAliases().contains(other.getFullName());
+      if ( !((getFullName() == null && other.getFullName() == null)
+            || getFullName().equals(other.getFullName())
+            || getAliases().contains(other.getFullName()))) {
+        throw new IncompatibleSchemaException("schemas do not share the same name or alias", this, other);
+      }
+      return true;
     }
     protected final void unifyAliases(Schema other) {
       for (String alias : other.getAliases()) {
@@ -801,7 +814,7 @@ public abstract class Schema {
       }
       gen.writeEndArray();
     }
-    public boolean subsumes(Schema other) {
+    public boolean subsumes(Schema other) throws IncompatibleSchemaException {
       if (!super.subsumes(other)) {
         return false;
       }
@@ -814,16 +827,18 @@ public abstract class Schema {
         Set<String> fieldNames = new HashSet<String>();
         for (Field f : other.getFields()) {
           Field myField = getField(f.name());
-          if (myField == null || !myField.schema().subsumes(f.schema())) {
-            return false;
+          if (myField == null) {
+              throw new IncompatibleSchemaException("child schema has an additional element than the parent schema", this, other);
           }
+          // This will error out if there is a problem
+          myField.schema().subsumes(f.schema());
           fieldNames.add(f.name());
         }
         for (Field f : getFields()) {
           // check that the parent fields are all present (or have a default
           // value).
           if (!fieldNames.contains(f.name()) && f.defaultValue() == null) {
-            return false;
+              throw new IncompatibleSchemaException("parent schema has and additional field without a default value", this, other);
           }
         }
         return true;
@@ -939,11 +954,14 @@ public abstract class Schema {
       aliasesToJson(gen);
       gen.writeEndObject();
     }
-    public boolean subsumes(Schema other) {
+    public boolean subsumes(Schema other) throws IncompatibleSchemaException {
       if (!super.subsumes(other)) {
         return false;
       }
-      return getEnumSymbols().containsAll(other.getEnumSymbols());
+      if (!getEnumSymbols().containsAll(other.getEnumSymbols())) {
+        throw new IncompatibleSchemaException("schemas do not share the same elements", this, other);
+      }
+      return true;
     }
     public Schema unify(Schema other) {
       if (other.getType() != Type.ENUM) {
@@ -986,7 +1004,7 @@ public abstract class Schema {
       props.write(gen);
       gen.writeEndObject();
     }
-    public boolean subsumes(Schema other) {
+    public boolean subsumes(Schema other) throws IncompatibleSchemaException {
       if (!super.subsumes(other)) {
         return false;
       }
@@ -1026,7 +1044,7 @@ public abstract class Schema {
       props.write(gen);
       gen.writeEndObject();
     }
-    public boolean subsumes(Schema other) {
+    public boolean subsumes(Schema other) throws IncompatibleSchemaException {
       if (!super.subsumes(other)) {
         return false;
       }
@@ -1086,7 +1104,7 @@ public abstract class Schema {
         type.toJson(names, gen);
       gen.writeEndArray();
     }
-    public boolean subsumes(Schema other) {
+    public boolean subsumes(Schema other) throws IncompatibleSchemaException {
       List<Schema> otherTypes = other.getType() == Type.UNION ?
           otherTypes = other.getTypes() : Arrays.asList(other);
 
@@ -1096,12 +1114,14 @@ public abstract class Schema {
       for (Schema otherType : otherTypes) {
         boolean found = false;
         for (Schema thisType : getTypes()) {
-          if (thisType.subsumes(otherType)) {
-            found = true;
-          }
+            try {
+                if (thisType.subsumes(otherType)) {
+                  found = true;
+                }
+            } catch (IncompatibleSchemaException e) {}
         }
         if (!found) {
-          return false;
+          throw new IncompatibleSchemaException("union schemas are incompatible", this, other);
         }
       }
       return true;
@@ -1173,11 +1193,15 @@ public abstract class Schema {
       aliasesToJson(gen);
       gen.writeEndObject();
     }
-    public boolean subsumes(Schema other) {
+    public boolean subsumes(Schema other) throws IncompatibleSchemaException {
       if (!super.subsumes(other)) {
         return false;
       }
-      return getFixedSize() == other.getFixedSize();
+      if (getFixedSize() != other.getFixedSize()) {
+          throw new IncompatibleSchemaException("fixed schemas are not the same size", this, other);
+
+      }
+      return true;
     }
     public Schema unify(Schema other) {
       if (other.getType() != Type.FIXED || other.getFixedSize() != getFixedSize()) {
@@ -1204,24 +1228,42 @@ public abstract class Schema {
 
   private static class LongSchema extends Schema {
     public LongSchema() { super(Type.LONG); }
-    public boolean subsumes(Schema other) {
-      return other.getType() == Type.INT || other.getType() == Type.LONG;
+    public boolean subsumes(Schema other) throws IncompatibleSchemaException {
+      if (other.getType() != Type.INT && other.getType() != Type.LONG) {
+          throw new IncompatibleSchemaException(String.format("%s cannot be converted to a %s",
+                                                other.getType().getName(),
+                                                this.getType().getName()),
+                  this, other);
+      }
+      return true;
     }
   }
 
   private static class FloatSchema extends Schema {
     public FloatSchema() { super(Type.FLOAT); }
-    public boolean subsumes(Schema other) {
-      return other.getType() == Type.INT || other.getType() == Type.LONG
-        || other.getType() == Type.FLOAT;
+    public boolean subsumes(Schema other) throws IncompatibleSchemaException {
+      if (other.getType() != Type.INT && other.getType() != Type.LONG
+        && other.getType() != Type.FLOAT) {
+          throw new IncompatibleSchemaException(String.format("%s cannot be converted to a %s",
+                                                other.getType().getName(),
+                                                this.getType().getName()),
+                  this, other);
+      }
+      return true;
     }
   }
 
   private static class DoubleSchema extends Schema {
     public DoubleSchema() { super(Type.DOUBLE); }
-    public boolean subsumes(Schema other) {
-      return other.getType() == Type.INT || other.getType() == Type.LONG
-        || other.getType() == Type.FLOAT || other.getType() == Type.DOUBLE;
+    public boolean subsumes(Schema other) throws IncompatibleSchemaException {
+      if (other.getType() != Type.INT && other.getType() != Type.LONG
+        && other.getType() != Type.FLOAT && other.getType() != Type.DOUBLE) {
+          throw new IncompatibleSchemaException(String.format("%s cannot be converted to a %s",
+                                                other.getType().getName(),
+                                                this.getType().getName()),
+                  this, other);
+      }
+      return true;
     }
   }
 
@@ -1801,5 +1843,5 @@ public abstract class Schema {
     }
 
   }
-  
+
 }
