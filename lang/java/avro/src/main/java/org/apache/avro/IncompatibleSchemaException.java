@@ -2,21 +2,21 @@ package org.apache.avro;
 
 import java.io.StringWriter;
 
-public class IncompatableSchemaException extends Exception {
+public class IncompatibleSchemaException extends Exception {
       private Schema parent;
       private Schema child;
 
-      public IncompatableSchemaException(String message, Schema parent, Schema child) {
+      public IncompatibleSchemaException(String message, Schema parent, Schema child) {
           super(message);
           this.parent = parent;
           this.child = child;
       }
 
-    public IncompatableSchemaException(String s) {
+    public IncompatibleSchemaException(String s) {
         super(s);
     }
 
-    public IncompatableSchemaException(String s, Schema child) {
+    public IncompatibleSchemaException(String s, Schema child) {
         super(s);
         this.child = child;
     }

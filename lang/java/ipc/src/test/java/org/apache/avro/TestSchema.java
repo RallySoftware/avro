@@ -930,7 +930,7 @@ public class TestSchema {
       try {
           assertTrue(String.format("%s is not a superset of %s", parent, child),
                   parent.subsumes(child));
-      } catch (IncompatableSchemaException e) {
+      } catch (IncompatibleSchemaException e) {
           fail(e.getMessage());
       }
   }
@@ -939,11 +939,11 @@ public class TestSchema {
       try {
           parent.subsumes(child);
           fail(String.format("%s is a superset of %s", parent, child));
-      } catch(IncompatableSchemaException e) {
+      } catch(IncompatibleSchemaException e) {
           Pattern p = Pattern.compile(errorMatch);
           Matcher m = p.matcher(e.getMessage());
           if(!m.find()) {
-              fail("IncompatableSchemaException was thrown, but the error message '" + e.getMessage() + "' did not match '" + errorMatch + "'");
+              fail("IncompatibleSchemaException was thrown, but the error message '" + e.getMessage() + "' did not match '" + errorMatch + "'");
           }
       }
   }
