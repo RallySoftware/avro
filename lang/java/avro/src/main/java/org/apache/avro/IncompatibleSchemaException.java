@@ -8,33 +8,20 @@ public class IncompatibleSchemaException extends Exception {
 
       public IncompatibleSchemaException(String message, Schema parent, Schema child) {
           super(message);
+          if (parent == null || child == null) {
+              throw new IllegalArgumentException("Parent and child schemas must be provided.");
+          }
           this.parent = parent;
           this.child = child;
       }
 
-    public IncompatibleSchemaException(String s) {
-        super(s);
-    }
-
-    public IncompatibleSchemaException(String s, Schema child) {
-        super(s);
-        this.child = child;
-    }
-
     @Override
       public String getMessage() {
-        if (parent == null && child == null)
-            return super.getMessage();
-
-          StringWriter writer = new StringWriter();
-          if (parent != null) {
-              writer.append("Schemas ");
-              writer.append(parent.toString());
-              writer.append(" and ").append(child.toString()).append(" are incompatible because ");
-          } else {
-              writer.append(child.toString()).append(": ");
-          }
-          writer.append(super.getMessage());
-          return writer.toString();
+        StringWriter writer = new StringWriter();
+        writer.append("Schemas ");
+        writer.append(parent.toString());
+        writer.append(" and ").append(child.toString()).append(" are incompatible because ");
+        writer.append(super.getMessage());
+        return writer.toString();
       }
   }
