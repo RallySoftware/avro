@@ -22,7 +22,7 @@
   <parent>
     <groupId>org.apache.avro</groupId>
     <artifactId>avro-toplevel</artifactId>
-    <version>1.7.7</version>
+    <version>1.7.7-RALLY</version>
     <relativePath>../../</relativePath>
   </parent>
 
@@ -248,6 +248,7 @@
                 <version>${plugin-tools-javadoc.version}</version>
               </tagletArtifact>
             </tagletArtifacts>
+            <excludePackageNames>org.apache.avro.compiler.idl,*.internal</excludePackageNames>
           </configuration>
         </plugin>
         <plugin>
