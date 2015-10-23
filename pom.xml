@@ -27,7 +27,7 @@
 
   <groupId>org.apache.avro</groupId>
   <artifactId>avro-toplevel</artifactId>
-  <version>1.7.7-RALLY</version>
+  <version>1.7.7-RALLY2</version>
   <packaging>pom</packaging>
 
   <name>Apache Avro Toplevel</name>
